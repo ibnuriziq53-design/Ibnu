@@ -22,12 +22,16 @@ CREATE POLICY "Allow users to update their own profile" ON public.users FOR UPDA
 CREATE OR REPLACE FUNCTION delete_user(target_user_id UUID)
 RETURNS void AS $$
 BEGIN
-  -- Check if the current user is an admin
+  -- Cek apakah yang menghapus adalah admin
   IF EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin') THEN
-    -- Delete from auth.users. The ON DELETE CASCADE constraint will remove it from public.users
+    -- Hapus secara eksplisit dari tabel publik dulu untuk memastikan tidak ada konflik
+    DELETE FROM public.students WHERE id = target_user_id;
+    DELETE FROM public.users WHERE id = target_user_id;
+    
+    -- Terakhir hapus dari auth.users
     DELETE FROM auth.users WHERE id = target_user_id;
   ELSE
-    RAISE EXCEPTION 'Not authorized to delete users';
+    RAISE EXCEPTION 'Tidak memiliki hak akses untuk menghapus pengguna';
   END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -134,7 +138,7 @@ CREATE POLICY "Allow all operations for guru and admin" ON public.exam_questions
 CREATE TABLE public.results (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
-  exam_id UUID REFERENCES public.exams(id) NOT NULL,
+  exam_id UUID REFERENCES public.exams(id) ON DELETE CASCADE NOT NULL,
   score INTEGER NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   UNIQUE(user_id, exam_id)
