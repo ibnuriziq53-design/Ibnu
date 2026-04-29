@@ -118,9 +118,27 @@ export default function ManageUsers() {
                       </select>
                     </td>
                     <td className="py-4 px-6 text-right">
-                      {/* Harusnya penghapusan auth.user dilakukan oleh server-side / Edge Function. */}
-                      {/* Untuk MVP kita biarkan disabled karena auth delete dari client tidak diizinkan default Supabase */}
-                      <button disabled className="text-slate-300 cursor-not-allowed p-2 rounded-lg hover:bg-slate-100" title="Delete di-disable untuk sisi klien">
+                      <button 
+                        onClick={async () => {
+                          if (window.confirm('Yakin ingin menghapus pengguna ini? Semua data terkait juga akan terhapus.')) {
+                            if (!supabase) return;
+                            try {
+                              const { error } = await supabase.rpc('delete_user', { target_user_id: u.id });
+                              if (error) throw error;
+                              fetchUsers();
+                            } catch (err: any) {
+                              alert('Gagal menghapus user: ' + err.message);
+                            }
+                          }
+                        }}
+                        disabled={appUser?.role !== 'admin' || u.id === appUser.id}
+                        className={`p-2 rounded-lg transition-colors ${
+                          appUser?.role !== 'admin' || u.id === appUser.id 
+                            ? 'text-slate-300 cursor-not-allowed' 
+                            : 'text-slate-500 hover:text-red-600 hover:bg-red-50'
+                        }`}
+                        title={u.id === appUser?.id ? "Tidak bisa menghapus diri sendiri" : "Hapus Pengguna"}
+                      >
                         <Trash2 className="w-5 h-5" />
                       </button>
                     </td>

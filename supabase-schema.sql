@@ -18,7 +18,19 @@ ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow public read access to users" ON public.users FOR SELECT USING (true);
 CREATE POLICY "Allow users to update their own profile" ON public.users FOR UPDATE USING (auth.uid() = id);
 
--- Create a trigger to automatically create a user profile when a new auth user signs up
+-- Create an RPC function to delete a user securely by an admin
+CREATE OR REPLACE FUNCTION delete_user(target_user_id UUID)
+RETURNS void AS $$
+BEGIN
+  -- Check if the current user is an admin
+  IF EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin') THEN
+    -- Delete from auth.users. The ON DELETE CASCADE constraint will remove it from public.users
+    DELETE FROM auth.users WHERE id = target_user_id;
+  ELSE
+    RAISE EXCEPTION 'Not authorized to delete users';
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 DROP FUNCTION IF EXISTS public.handle_new_user();
 
@@ -79,7 +91,7 @@ CREATE TABLE public.questions (
   option_c TEXT NOT NULL,
   option_d TEXT NOT NULL,
   correct_answer TEXT NOT NULL,
-  created_by UUID REFERENCES public.users(id) NOT NULL,
+  created_by UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -94,7 +106,7 @@ CREATE TABLE public.exams (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   title TEXT NOT NULL,
   duration INTEGER NOT NULL, -- in minutes
-  created_by UUID REFERENCES public.users(id) NOT NULL,
+  created_by UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -121,7 +133,7 @@ CREATE POLICY "Allow all operations for guru and admin" ON public.exam_questions
 -- Create Results table
 CREATE TABLE public.results (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID REFERENCES public.users(id) NOT NULL,
+  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
   exam_id UUID REFERENCES public.exams(id) NOT NULL,
   score INTEGER NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
