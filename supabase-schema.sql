@@ -24,17 +24,16 @@ RETURNS void AS $$
 BEGIN
   -- Cek apakah yang menghapus adalah admin
   IF EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin') THEN
-    -- Hapus secara eksplisit dari tabel publik dulu untuk memastikan tidak ada konflik
-    DELETE FROM public.students WHERE id = target_user_id;
-    DELETE FROM public.users WHERE id = target_user_id;
-    
-    -- Terakhir hapus dari auth.users
+    -- Hapus dari auth.users. Cascading akan menghapus data di public.users, public.students, dll.
     DELETE FROM auth.users WHERE id = target_user_id;
   ELSE
     RAISE EXCEPTION 'Tidak memiliki hak akses untuk menghapus pengguna';
   END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Pastikan search path menyertakan auth untuk penghapusan
+ALTER FUNCTION delete_user(target_user_id UUID) SET search_path = public, auth;
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 DROP FUNCTION IF EXISTS public.handle_new_user();
 
